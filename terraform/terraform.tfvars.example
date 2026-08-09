@@ -1,0 +1,35 @@
+# Copy to terraform.tfvars (gitignored) and adjust as needed.
+# Auth: prefer environment variables from ../.env
+#   PROXMOX_VE_ENDPOINT
+#   PROXMOX_VE_API_TOKEN
+#   PROXMOX_VE_INSECURE
+
+# proxmox_endpoint  = "https://10.0.0.5:8006/"
+# proxmox_api_token = "user@pam!token=uuid"
+proxmox_insecure = true
+
+cluster_name         = "talos-k8s"
+kubernetes_api_dns   = "k8s-api.k8s.internal"
+kubernetes_api_vip   = "10.0.0.100"
+gateway              = "10.0.0.1"
+network_cidr_prefix  = 24
+bridge               = "vmbr0"
+datastore_id         = "proxmox-share-lvm"
+iso_file_id          = "local:iso/metal-amd64.iso"
+# Prefer the Image Factory ISO with ip=ens18:dhcp so maintenance mode
+# gets networking without F3 dashboard (see docs/maintenance-network.md):
+#   ./scripts/fetch-talos-iso.sh
+#   iso_file_id = "local:iso/metal-amd64-ens18-dhcp.iso"
+
+control_plane_cpu_cores = 2
+control_plane_memory_mb = 4096
+control_plane_disk_gb   = 40
+
+worker_cpu_cores = 2
+worker_memory_mb = 4096
+worker_disk_gb   = 40
+
+# Optional overrides — defaults place CPs/workers across pve01–pve03
+# with IPs 10.0.0.111–116 and VMIDs 111–116.
+# control_planes = { ... }
+# workers        = { ... }

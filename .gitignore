@@ -30,3 +30,5 @@ talos/rendered/
 # Kubernetes
 kubeconfig*
 **/kubeconfig
+
+talosconfig
