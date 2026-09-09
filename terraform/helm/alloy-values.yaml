@@ -1,0 +1,73 @@
+# values/alloy.yaml
+#
+# Uses loki.source.kubernetes, which pulls logs via the Kubernetes API
+# (same mechanism as `kubectl logs`) rather than tailing hostPath log
+# files directly. This avoids needing alloy.mounts.varlog / a hostPath
+# mount at all — simpler and slightly less privileged than the more
+# common local.file_match + /var/log/pods pattern, at the cost of a
+# bit more load on the API server. Fine at this cluster's log volume.
+
+alloy:
+  configMap:
+    content: |-
+      logging {
+        level  = "info"
+        format = "logfmt"
+      }
+
+      // Restrict discovery to pods on this node only — each Alloy pod
+      // (one per node, via DaemonSet) should only handle its own node's
+      // logs, not duplicate every other node's.
+      discovery.kubernetes "pods" {
+        role = "pod"
+        selectors {
+          role  = "pod"
+          field = "spec.nodeName=" + coalesce(sys.env("HOSTNAME"), constants.hostname)
+        }
+      }
+
+      discovery.relabel "pods" {
+        targets = discovery.kubernetes.pods.targets
+
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+        rule {
+          source_labels = ["__meta_kubernetes_pod_node_name"]
+          target_label  = "node"
+        }
+      }
+
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.pods.output
+        forward_to = [loki.write.default.receiver]
+      }
+
+      loki.write "default" {
+        endpoint {
+          url = "http://loki.observability.svc.cluster.local:3100/loki/api/v1/push"
+        }
+        external_labels = {
+          cluster = "homelab",
+        }
+      }
+
+controller:
+  type: daemonset
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

@@ -1,0 +1,112 @@
+# values/loki.yaml
+#
+# Monolithic mode: all Loki components in one pod. Filesystem storage
+# instead of S3/GCS/MinIO — appropriate for homelab log volumes, not
+# recommended if you ever push serious multi-tenant/production log volume.
+#
+# NB: chart >=12.0.0 renamed "SingleBinary" to "Monolithic". "SingleBinary"
+# still works (deprecated alias) — check your pinned chart version if this
+# ever errors on upgrade.
+
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+
+  commonConfig:
+    replication_factor: 1
+
+  storage:
+    type: filesystem
+
+  schemaConfig:
+    configs:
+      - from: "2024-01-01"
+        store: tsdb
+        object_store: filesystem
+        schema: v13
+        index:
+          prefix: loki_index_
+          period: 24h
+
+  limits_config:
+    reject_old_samples: true
+    reject_old_samples_max_age: 168h
+    ingestion_rate_mb: 16
+    ingestion_burst_size_mb: 32
+
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: true
+    storageClass: "${storage_class}"
+    size: 20Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# Zero out every other deployment-mode target explicitly — the chart's
+# own validation webhook rejects the install if it sees nonzero replicas
+# on more than one mode at once.
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+ingester:
+  replicas: 0
+querier:
+  replicas: 0
+queryFrontend:
+  replicas: 0
+queryScheduler:
+  replicas: 0
+distributor:
+  replicas: 0
+compactor:
+  replicas: 0
+indexGateway:
+  replicas: 0
+
+gateway:
+  enabled: false # accessed directly via ClusterIP in-cluster, no need for the nginx gateway
+
+# The chart enables Memcached-backed chunk/results caching by default
+# with production-scale memory requests (~9.6Gi per cache pod), which
+# won't schedule on modest homelab hardware and isn't needed at this
+# log volume anyway.
+# A small chunk cache noticeably speeds up repeated log queries in
+# Grafana. Disabled earlier when node memory headroom was unknown —
+# with 32Gi/host, a modest explicit size is safe (vs. the chart's
+# ~9.6Gi default, which wasn't).
+# A small chunk cache noticeably speeds up repeated log queries in
+# Grafana. `allocatedMemory` (MB) is the only knob the chart exposes —
+# it both sets memcached's -m flag AND auto-derives the container's
+# resources.requests/limits as round(allocatedMemory * 1.2)Mi. Don't
+# set `resources` or `extraArgs` directly here; they don't merge
+# cleanly with the chart's own args and will crash the container.
+chunksCache:
+  enabled: true
+  allocatedMemory: 1024 # -> ~1229Mi request/limit, comfortable at 32Gi/host
+
+resultsCache:
+  enabled: false # lower value at this query volume; leave disabled
+
+lokiCanary:
+  enabled: false # synthetic log canary, unnecessary complexity for a homelab
+
+test:
+  enabled: false
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+  selfMonitoring:
+    enabled: false # avoid a Grafana Agent Operator dependency none of your other components use
+  lokiCanary:
+    enabled: false

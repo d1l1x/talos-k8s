@@ -1,0 +1,133 @@
+# values/kube-prometheus-stack.yaml
+
+prometheus:
+  prometheusSpec:
+    retention: 15d
+
+    # local-path-provisioner backs PVCs with hostPath directories, and
+    # kubelet does not apply fsGroup ownership changes to hostPath
+    # volumes — the chart's default non-root securityContext therefore
+    # can't write to its own data dir. Running as root sidesteps this;
+    # revisit once storage moves to Longhorn (a real CSI driver that
+    # does honor fsGroup).
+    securityContext:
+      runAsUser: 0
+      runAsGroup: 0
+      runAsNonRoot: false
+      fsGroup: 0
+    # Discover ServiceMonitors/PodMonitors cluster-wide, not just ones
+    # labeled for this Helm release — this is what picks up the
+    # ServiceMonitor already defined in your Cilium values (metrics +
+    # hubble.metrics).
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: "${storage_class}"
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+
+alertmanager:
+  alertmanagerSpec:
+    # Same hostPath/fsGroup limitation as Prometheus above.
+    securityContext:
+      runAsUser: 0
+      runAsGroup: 0
+      runAsNonRoot: false
+      fsGroup: 0
+
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: "${storage_class}"
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+
+grafana:
+  adminUser: admin
+  # adminPassword set via set_sensitive in monitoring.tf, not here
+
+  persistence:
+    enabled: true
+    storageClassName: "${storage_class}"
+    size: 5Gi
+
+  # Auto-discovers ConfigMaps labeled grafana_dashboard: "1" across all
+  # namespaces — this is what activates the dashboards your Cilium
+  # values already asked for via hubble.dashboards.enabled.
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+      label: grafana_dashboard
+    datasources:
+      enabled: true
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+  # No ingress yet — access via kubectl port-forward until you decide
+  # on an ingress/DNS story for internal services.
+  ingress:
+    enabled: true
+    ingressClassName: cilium # matches ingressController.default: true in your Cilium values
+    hosts:
+      - "${grafana_hostname}"
+    annotations:
+      cert-manager.io/cluster-issuer: ca-issuer # the internal CA from cert-manager.tf
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - "${grafana_hostname}"
+
+defaultRules:
+  create: true
+
+nodeExporter:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true
+
+# Talos runs its own kube-apiserver/etcd/scheduler/controller-manager
+# as static pods reachable on standard ports, so the built-in
+# ServiceMonitors for these should work without changes. If any of
+# them show as "down" in Prometheus's targets page, that's the first
+# place to look — Talos's control plane component ports/bind addresses
+# occasionally differ from kubeadm-based clusters.
+kubeControllerManager:
+  enabled: true
+kubeScheduler:
+  enabled: true
+kubeEtcd:
+  enabled: true
+kubeProxy:
+  enabled: false # Cilium replaces kube-proxy (kubeProxyReplacement: true), nothing to scrape here

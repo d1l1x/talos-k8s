@@ -1,0 +1,21 @@
+architecture: replication
+
+primary:
+  persistence:
+    storageClass: "${storage_class}"
+    size: 8Gi
+
+replica:
+  replicaCount: 3 # 1 primary + 2 replicas = 3 nodes total
+  podAntiAffinityPreset: hard # spread across your 3 Proxmox hosts
+  persistence:
+    storageClass: "${storage_class}"
+    size: 8Gi
+
+sentinel:
+  enabled: true
+  quorum: 2 # needs 2 of 3 sentinels to agree on failover
+  podAntiAffinityPreset: hard
+
+auth:
+  enabled: true

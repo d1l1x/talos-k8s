@@ -1,0 +1,102 @@
+# values/gitea.yaml
+
+replicaCount: 1
+
+persistence:
+  enabled: true
+  create: false
+  claimName: "${data_storage_claim_name}"
+
+gitea:
+  admin:
+    username: gitea_admin
+    email: "admin@${gitea_hostname}"
+    # password set via set_sensitive in gitea.tf
+
+  config:
+    APP_NAME: "Homelab Gitea"
+    server:
+      DOMAIN: "${gitea_hostname}"
+      ROOT_URL: "https://${gitea_hostname}/"
+      PROTOCOL: http # TLS terminates at the Ingress, not at Gitea itself
+    # Container registry lives under Gitea's "Packages" feature —
+    # explicit here rather than relying on the chart/app default.
+    packages:
+      ENABLED: true
+    # Deliberately NOT wiring this to the existing Valkey Sentinel
+    # cluster yet — Gitea's redis+sentinel connection string support
+    # needs verifying against your exact chart/Gitea version before
+    # depending on it. Default in-memory cache + level-backed queue is
+    # perfectly fine at this scale; revisit once you want to share
+    # infra with Valkey deliberately.
+    cache:
+      ADAPTER: memory
+    queue:
+      TYPE: level
+    session:
+      PROVIDER: memory
+    actions:
+      ENABLED: true
+    database:
+      DB_TYPE: postgres
+      HOST: "${postgres_host}"
+      NAME: gitea
+      USER: root
+      PASSWD: gitea
+      SCHEMA: gitea
+      SSL_MODE: disable # internal ClusterIP traffic only
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+postgresql:
+  enabled: false
+  primary:
+    persistence:
+      enabled: true
+      storageClass: "-"   # Bitnami convention for "explicitly empty", so it can match a static PV
+      size: 20Gi          # must be <= the PV's capacity
+  auth:
+    username: gitea
+    database: gitea
+  image:
+    debug: true
+
+# The chart defaults postgresql-ha to enabled, and it refuses to render
+# with both this and plain postgresql on. A 3-replica Postgres cluster
+# is overkill next to a single-replica Gitea anyway.
+postgresql-ha:
+  enabled: false
+
+valkey-cluster:
+  enabled: false
+valkey:
+  enabled: false
+
+ingress:
+  enabled: true
+  className: cilium
+  annotations:
+    cert-manager.io/cluster-issuer: ca-issuer
+  hosts:
+    - host: "${gitea_hostname}"
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: gitea-tls
+      hosts:
+        - "${gitea_hostname}"
+
+service:
+  http:
+    type: ClusterIP
+    port: 3000
+  ssh:
+    type: LoadBalancer # switch to LoadBalancer/NodePort later if you want git-over-SSH from outside the cluster
+    port: 22

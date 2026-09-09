@@ -32,3 +32,6 @@ kubeconfig*
 **/kubeconfig
 
 talosconfig
+.DS_Store
+images/
+*.pem
