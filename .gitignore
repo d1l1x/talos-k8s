@@ -35,3 +35,4 @@ talosconfig
 .DS_Store
 images/
 *.pem
+tmp

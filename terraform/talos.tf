@@ -100,6 +100,21 @@ locals {
       }
     },
   ]
+
+  # helm_template can emit equivalent YAML maps/documents in a different order.
+  # Canonicalize them before including them in the machine configuration hash.
+  cilium_manifest = join("\n---\n", [
+    for document in split("\n---\n", data.helm_template.cilium.manifest) : yamlencode(yamldecode(document))
+  ])
+  cert_manager_manifest = join("\n---\n", [
+    for document in split("\n---\n", data.helm_template.cert_manager.manifest) : yamlencode(yamldecode(document))
+  ])
+  trust_manager_manifest = join("\n---\n", [
+    for document in split("\n---\n", data.helm_template.trust_manager.manifest) : yamlencode(yamldecode(document))
+  ])
+  flux_manifest = join("\n---\n", [
+    for document in split("\n---\n", data.helm_template.flux.manifest) : yamlencode(yamldecode(document))
+  ])
 }
 
 resource "talos_machine_secrets" "this" {
@@ -140,7 +155,7 @@ data "talos_machine_configuration" "controller" {
             {
               name = "cilium"
               contents = join("---\n", [
-                data.helm_template.cilium.manifest,
+                local.cilium_manifest,
                 local.cilium_external_lb_manifest,
               ])
             },
@@ -154,13 +169,13 @@ data "talos_machine_configuration" "controller" {
                     name = "cert-manager"
                   }
                 }),
-                data.helm_template.cert_manager.manifest,
+                local.cert_manager_manifest,
                 "# Source cert-manager.tf\n${local.cert_manager_ingress_ca_manifest}",
               ])
             },
             {
               name     = "trust-manager"
-              contents = data.helm_template.trust_manager.manifest
+              contents = local.trust_manager_manifest
             },
             {
               name = "flux"
@@ -172,7 +187,7 @@ data "talos_machine_configuration" "controller" {
                     name = "flux-system"
                   }
                 }),
-                data.helm_template.flux.manifest,
+                local.flux_manifest,
               ])
             },
             # {

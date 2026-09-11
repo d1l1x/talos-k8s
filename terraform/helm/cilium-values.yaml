@@ -68,6 +68,11 @@ ingressController:
 
 hubble:
   enabled: true
+  tls:
+    auto:
+      # Generate and rotate certificates in-cluster; Helm rendering must not
+      # embed new certificates on every Terraform plan.
+      method: "cronJob"
   relay:
     enabled: true
   ui:

@@ -5,3 +5,49 @@ imageAutomationController:
   create: true
 imageReflectionController:
   create: true
+
+# Talos applies inline manifests without Helm's release namespace, placing the
+# Flux controllers in `default`. Mirror the chart's bindings for those accounts.
+extraObjects:
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: flux-crd-controller-default
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: crd-controller
+    subjects:
+      - kind: ServiceAccount
+        name: helm-controller
+        namespace: default
+      - kind: ServiceAccount
+        name: image-automation-controller
+        namespace: default
+      - kind: ServiceAccount
+        name: image-reflector-controller
+        namespace: default
+      - kind: ServiceAccount
+        name: kustomize-controller
+        namespace: default
+      - kind: ServiceAccount
+        name: notification-controller
+        namespace: default
+      - kind: ServiceAccount
+        name: source-controller
+        namespace: default
+  - apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      name: flux-cluster-reconciler-default
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: cluster-admin
+    subjects:
+      - kind: ServiceAccount
+        name: helm-controller
+        namespace: default
+      - kind: ServiceAccount
+        name: kustomize-controller
+        namespace: default
