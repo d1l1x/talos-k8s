@@ -118,13 +118,12 @@ locals {
   # Helm applies its release namespace to namespaced resources. Talos applies
   # rendered manifests directly, so retain that namespace explicitly here.
   flux_manifest = join("\n---\n", [
-    for document in local.flux_documents : yamlencode(
-      contains(["ClusterRole", "ClusterRoleBinding", "CustomResourceDefinition"], document.kind)
-      ? document
-      : merge(document, {
-        metadata = merge(try(document.metadata, {}), { namespace = "flux-system" })
-      })
-    )
+    for document in local.flux_documents :
+    contains(["ClusterRole", "ClusterRoleBinding", "CustomResourceDefinition"], document.kind)
+    ? yamlencode(document)
+    : yamlencode(merge(document, {
+      metadata = merge(try(document.metadata, {}), { namespace = "flux-system" })
+    }))
   ])
 }
 
