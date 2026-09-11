@@ -1,0 +1,7 @@
+installCRDs: true
+
+# The image controllers are required for application image discovery and updates.
+imageAutomationController:
+  create: true
+imageReflectionController:
+  create: true

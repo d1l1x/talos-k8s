@@ -26,6 +26,16 @@ locals {
             forwardKubeDNSToHost = true
           }
         }
+        registries = {
+          config = {
+            # Gitea is served with the cluster's private cert-manager CA.
+            "git.lab" = {
+              tls = {
+                insecureSkipVerify = true
+              }
+            }
+          }
+        }
         kubelet = {
           extraConfig = {
             # Reserve headroom for Talos/kubelet/containerd so pod scheduling
@@ -151,6 +161,19 @@ data "talos_machine_configuration" "controller" {
             {
               name     = "trust-manager"
               contents = data.helm_template.trust_manager.manifest
+            },
+            {
+              name = "flux"
+              contents = join("---\n", [
+                yamlencode({
+                  apiVersion = "v1"
+                  kind       = "Namespace"
+                  metadata = {
+                    name = "flux-system"
+                  }
+                }),
+                data.helm_template.flux.manifest,
+              ])
             },
             # {
             #   name     = "reloader"
