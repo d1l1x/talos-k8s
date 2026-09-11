@@ -112,8 +112,19 @@ locals {
   trust_manager_manifest = join("\n---\n", [
     for document in split("\n---\n", data.helm_template.trust_manager.manifest) : yamlencode(yamldecode(document))
   ])
+  flux_documents = [
+    for document in split("\n---\n", data.helm_template.flux.manifest) : yamldecode(document)
+  ]
+  # Helm applies its release namespace to namespaced resources. Talos applies
+  # rendered manifests directly, so retain that namespace explicitly here.
   flux_manifest = join("\n---\n", [
-    for document in split("\n---\n", data.helm_template.flux.manifest) : yamlencode(yamldecode(document))
+    for document in local.flux_documents : yamlencode(
+      contains(["ClusterRole", "ClusterRoleBinding", "CustomResourceDefinition"], document.kind)
+      ? document
+      : merge(document, {
+        metadata = merge(try(document.metadata, {}), { namespace = "flux-system" })
+      })
+    )
   ])
 }
 
